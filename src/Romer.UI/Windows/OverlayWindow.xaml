@@ -1,0 +1,53 @@
+<Window x:Class="Romer.UI.Windows.OverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:Romer.UI.Controls"
+        Title="Romer Overlay"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        Topmost="True"
+        ShowActivated="False"
+        Focusable="False">
+    <Grid>
+        <controls:RomerCanvas x:Name="RomerCanvasControl"
+                              HorizontalAlignment="Left"
+                              VerticalAlignment="Top"
+                              Margin="0" />
+
+        <Border HorizontalAlignment="Left"
+                VerticalAlignment="Top"
+                Margin="12"
+                Background="#B01F1F1F"
+                BorderBrush="#E9EEF5"
+                BorderThickness="1"
+                Padding="8,6">
+            <StackPanel>
+                <TextBlock x:Name="StatusText"
+                           Foreground="#F8FCFF"
+                           FontSize="12"
+                           FontWeight="SemiBold"
+                           Text="Romer" />
+                <TextBlock x:Name="HotkeyHintsText"
+                           Margin="0,4,0,0"
+                           Foreground="#D3DEE9"
+                           FontSize="11"
+                           Text="Hotkeys: not loaded" />
+                <TextBlock x:Name="CursorCoordinateText"
+                           Margin="0,4,0,0"
+                           Foreground="#F6F9FC"
+                           FontSize="11"
+                           FontWeight="SemiBold"
+                           Text="Grid: (--; --)" />
+                <TextBlock x:Name="WindowPositionText"
+                           Margin="0,2,0,0"
+                           Foreground="#F6F9FC"
+                           FontSize="11"
+                           FontWeight="SemiBold"
+                           Text="Window: (--; --)" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

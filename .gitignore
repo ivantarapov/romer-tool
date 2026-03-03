@@ -1,0 +1,45 @@
+# Build outputs
+[Bb]in/
+[Oo]bj/
+out/
+
+# Test artifacts
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coveragexml
+coverage/
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+
+# Logs and runtime temp
+*.log
+logs/
+
+# User/IDE-specific files
+*.user
+*.rsuser
+*.suo
+*.userprefs
+.vs/
+.vscode/
+.idea/
+
+# Visual Studio cache/files
+_ReSharper*/
+*.DotSettings.user
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Generated files
+*.g.cs
+*.g.i.cs
+
+# Local app/runtime data
+**/AppData/
