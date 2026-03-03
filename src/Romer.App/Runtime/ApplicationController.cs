@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Runtime.InteropServices;
 using System.Windows;
 using Forms = System.Windows.Forms;
 using Romer.Core;
@@ -17,6 +18,7 @@ public sealed class ApplicationController : IDisposable
     private readonly OverlayWindow _overlayWindow;
     private readonly GlobalHotkeyService _hotkeys;
     private readonly Forms.NotifyIcon _notifyIcon;
+    private readonly Icon _trayIcon;
 
     private bool _hasSummoned;
 
@@ -46,6 +48,7 @@ public sealed class ApplicationController : IDisposable
         _hotkeys.RegisterDefaultBindings();
         UpdateOverlayHotkeyHints();
 
+        _trayIcon = CreateTrayIcon();
         _notifyIcon = BuildTrayIcon();
         _logger.Info("Application started");
 
@@ -71,6 +74,7 @@ public sealed class ApplicationController : IDisposable
         _hotkeys.Dispose();
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
+        _trayIcon.Dispose();
         _overlayWindow.Close();
         _logger.Info("Application stopped");
     }
@@ -104,7 +108,7 @@ public sealed class ApplicationController : IDisposable
     {
         var icon = new Forms.NotifyIcon
         {
-            Icon = SystemIcons.Application,
+            Icon = _trayIcon,
             Text = "Romer Overlay",
             Visible = false
         };
@@ -216,6 +220,36 @@ public sealed class ApplicationController : IDisposable
         _notifyIcon.ShowBalloonTip(2000, "Romer", "Hotkeys updated for this session.", Forms.ToolTipIcon.Info);
     }
 
+    private static Icon CreateTrayIcon()
+    {
+        using var bitmap = new Bitmap(32, 32);
+        using var graphics = Graphics.FromImage(bitmap);
+        graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        graphics.Clear(Color.Transparent);
+
+        using var outerBrush = new SolidBrush(Color.FromArgb(228, 27, 35, 48));
+        using var outerPen = new Pen(Color.FromArgb(245, 224, 233, 244), 1.6f);
+        graphics.FillEllipse(outerBrush, 2, 2, 28, 28);
+        graphics.DrawEllipse(outerPen, 2.4f, 2.4f, 27.2f, 27.2f);
+
+        using var guidePen = new Pen(Color.FromArgb(230, 245, 248, 252), 1.2f);
+        using var accentPen = new Pen(Color.FromArgb(230, 129, 225, 255), 1.6f);
+        graphics.DrawLine(guidePen, 6, 16, 26, 16);
+        graphics.DrawLine(guidePen, 16, 6, 16, 26);
+        graphics.DrawRectangle(accentPen, 10, 10, 12, 12);
+
+        var hIcon = bitmap.GetHicon();
+        try
+        {
+            using var tempIcon = Icon.FromHandle(hIcon);
+            return (Icon)tempIcon.Clone();
+        }
+        finally
+        {
+            _ = DestroyIcon(hIcon);
+        }
+    }
+
     private void UpdateOverlayHotkeyHints()
     {
         var displayOrder = new[]
@@ -251,4 +285,7 @@ public sealed class ApplicationController : IDisposable
         HotkeyAction.QuitApp => "Quit",
         _ => action.ToString()
     };
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool DestroyIcon(IntPtr hIcon);
 }

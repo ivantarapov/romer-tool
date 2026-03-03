@@ -18,6 +18,7 @@ public partial class RomerCanvas : UserControl
     private const int GridDivisions = 10;
     private const double MinScale = 0.2;
     private const double MaxScale = 8.0;
+    private const double RotationDegreesPerPixel = 0.35;
 
     private InteractionMode _interactionMode;
     private Point _startPoint;
@@ -26,11 +27,13 @@ public partial class RomerCanvas : UserControl
     private double _startScaleX;
     private double _startScaleY;
     private double _startRotation;
-    private double _startAngle;
     private ResizeHandleKind _activeResizeHandle;
     private Point _resizeDraggedLocalCorner;
     private Point _resizeAnchorLocalCorner;
     private Point _resizeAnchorWorldPoint;
+    private Vector _resizeGrabOffsetWorld;
+    private bool _pendingResize;
+    private Point _resizePointerDownPoint;
 
     public RomerCanvas()
     {
@@ -271,7 +274,14 @@ public partial class RomerCanvas : UserControl
             _ => ResizeHandleKind.BottomRight
         };
 
-        StartInteraction(InteractionMode.Resize, e.GetPosition(this));
+        _pendingResize = true;
+        _resizePointerDownPoint = e.GetPosition(this);
+        _startX = TranslatePart.X;
+        _startY = TranslatePart.Y;
+        _startScaleX = ScalePart.ScaleX;
+        _startScaleY = ScalePart.ScaleY;
+        _startRotation = RotatePart.Angle;
+
         (_resizeDraggedLocalCorner, _resizeAnchorLocalCorner) = GetResizeCorners(_activeResizeHandle);
         _resizeAnchorWorldPoint = TransformLocalPoint(
             _resizeAnchorLocalCorner,
@@ -280,6 +290,16 @@ public partial class RomerCanvas : UserControl
             _startRotation,
             _startX,
             _startY);
+        var resizeDraggedWorldPoint = TransformLocalPoint(
+            _resizeDraggedLocalCorner,
+            _startScaleX,
+            _startScaleY,
+            _startRotation,
+            _startX,
+            _startY);
+        _resizeGrabOffsetWorld = e.GetPosition(this) - resizeDraggedWorldPoint;
+
+        CaptureMouse();
         e.Handled = true;
     }
 
@@ -291,7 +311,6 @@ public partial class RomerCanvas : UserControl
         }
 
         StartInteraction(InteractionMode.Rotate, e.GetPosition(this));
-        _startAngle = AngleFromCenter(_startPoint);
         e.Handled = true;
     }
 
@@ -311,6 +330,29 @@ public partial class RomerCanvas : UserControl
     private void OnMouseMove(object sender, MouseEventArgs e)
     {
         PublishCursorCoordinate(e.GetPosition(this));
+
+        if (_pendingResize)
+        {
+            if (e.LeftButton != MouseButtonState.Pressed)
+            {
+                _pendingResize = false;
+                _activeResizeHandle = ResizeHandleKind.None;
+                ReleaseMouseCapture();
+                e.Handled = true;
+                return;
+            }
+
+            var delta = e.GetPosition(this) - _resizePointerDownPoint;
+            if (Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance &&
+                Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance)
+            {
+                e.Handled = true;
+                return;
+            }
+
+            _pendingResize = false;
+            _interactionMode = InteractionMode.Resize;
+        }
 
         if (_interactionMode == InteractionMode.None || e.LeftButton != MouseButtonState.Pressed)
         {
@@ -344,12 +386,20 @@ public partial class RomerCanvas : UserControl
                     _resizeDraggedLocalCorner.Y - _resizeAnchorLocalCorner.Y);
                 if (Math.Abs(localDiagonal.X) > 0.0001 && Math.Abs(localDiagonal.Y) > 0.0001)
                 {
-                    var worldFromAnchor = point - _resizeAnchorWorldPoint;
+                    var adjustedDraggedWorldPoint = point - _resizeGrabOffsetWorld;
+                    var worldFromAnchor = adjustedDraggedWorldPoint - _resizeAnchorWorldPoint;
                     var rotatedWorld = InverseRotate(worldFromAnchor, _startRotation);
                     var diagonalUnit = localDiagonal;
                     diagonalUnit.Normalize();
                     var projectedLength = Vector.Multiply(rotatedWorld, diagonalUnit);
-                    var nextUniformScale = Math.Clamp(projectedLength / localDiagonal.Length, MinScale, MaxScale);
+                    var rawUniformScale = projectedLength / localDiagonal.Length;
+                    if (rawUniformScale <= 0.0001)
+                    {
+                        // Ignore transient invalid frames when switching handles; keep existing visual scale.
+                        rawUniformScale = ScalePart.ScaleX;
+                    }
+
+                    var nextUniformScale = Math.Clamp(rawUniformScale, MinScale, MaxScale);
 
                     ScalePart.ScaleX = nextUniformScale;
                     ScalePart.ScaleY = nextUniformScale;
@@ -369,8 +419,8 @@ public partial class RomerCanvas : UserControl
 
                 break;
             case InteractionMode.Rotate:
-                var currentAngle = AngleFromCenter(point);
-                RotatePart.Angle = NormalizeDegrees(_startRotation + (currentAngle - _startAngle));
+                var horizontalDelta = point.X - _startPoint.X;
+                RotatePart.Angle = NormalizeDegrees(_startRotation + (horizontalDelta * RotationDegreesPerPixel));
                 break;
         }
 
@@ -414,6 +464,15 @@ public partial class RomerCanvas : UserControl
 
     private void OnMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
+        if (_pendingResize)
+        {
+            _pendingResize = false;
+            _activeResizeHandle = ResizeHandleKind.None;
+            ReleaseMouseCapture();
+            e.Handled = true;
+            return;
+        }
+
         if (_interactionMode == InteractionMode.None)
         {
             return;
@@ -468,13 +527,6 @@ public partial class RomerCanvas : UserControl
             ResizeHandleKind.BottomLeft => (bottomLeft, topRight),
             _ => (bottomRight, topLeft)
         };
-    }
-
-    private static double AngleFromCenter(Point point)
-    {
-        var dx = point.X - BaseCenter;
-        var dy = point.Y - BaseCenter;
-        return Math.Atan2(dy, dx) * 180 / Math.PI;
     }
 
     private void PublishTransform()
